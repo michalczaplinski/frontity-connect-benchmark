@@ -19,34 +19,22 @@ const isObject = val =>
 const isPrimitive = value =>
   value == null || (typeof value !== "function" && typeof value !== "object");
 
-function deepOverwrite(a, b) {
+function deepDiff(a, b) {
   // Delete the props of a that are not in b.
   Object.keys(a).forEach(key => {
     if (typeof b[key] === "undefined") {
-      // save the old value
-      const oldValue = a[key];
-
-      // Delete the key.
-      if (Array.isArray(a)) {
-        a.pop(key);
-      } else {
-        delete a[key];
-      }
-
       // Trigger a delete reaction.
       queueReactionsForOperation({
         target: a,
         key,
-        oldValue,
+        oldValue: a[key],
         type: "delete"
       });
     }
   });
 
   Object.keys(b).forEach(key => {
-    // If that key doesn't exist, we add it.
     if (typeof a[key] === "undefined") {
-      a[key] = b[key];
       queueReactionsForOperation({
         target: a,
         key,
@@ -57,22 +45,18 @@ function deepOverwrite(a, b) {
       // only update the value and trigger a reaction if the
       // new value differs from the old one
       if (a[key] !== b[key]) {
-        // save the old value
-        const oldValue = a[key];
-
-        a[key] = b[key];
         queueReactionsForOperation({
           target: a,
           key,
           value: b[key],
-          oldValue,
+          oldValue: a[key],
           type: "set"
         });
       }
 
-      // If it's an object, we deepOverwrite it again.
+      // If it's an object, we deepDiff it again.
     } else {
-      deepOverwrite(a[key], b[key]);
+      deepDiff(a[key], b[key]);
     }
   });
 }
@@ -140,12 +124,6 @@ function ownKeys(target) {
 
 // intercept set operations on observables to know when to trigger reactions
 function set(target, key, value, receiver) {
-  // We're just storing the reference to the root of the state tree
-  // This is just for internal use - no need to do anything else
-  if (key === ROOT) {
-    return Reflect.set(target, key, value, receiver);
-  }
-
   // make sure to do not pollute the raw object with observables
   if (typeof value === "object" && value !== null) {
     value = proxyToRaw.get(value) || value;
@@ -155,28 +133,22 @@ function set(target, key, value, receiver) {
   const hadKey = hasOwnProperty.call(target, key);
   // save if the value changed because of this set operation
   const oldValue = target[key];
-
+  // execute the set operation before running any reaction
+  const result = Reflect.set(target, key, value, receiver);
   // do not queue reactions if the target of the operation is not the raw receiver
   // (possible because of prototypal inheritance)
   if (target !== proxyToRaw.get(receiver)) {
-    // execute the set operation before running any reaction
-    return Reflect.set(target, key, value, receiver);
+    return result
   }
-
-  // If both the old value and the new value are objects OR if both are arrays, deepOverwrite.
+  // If both the old value and the new value are objects OR if both are arrays, deepDiff.
   if (
     !isPrimitive(oldValue) &&
     !isPrimitive(value) &&
     (isObject(oldValue) === isObject(value) ||
       Array.isArray(oldValue) === Array.isArray(value))
   ) {
-    deepOverwrite(oldValue, value);
-    // TODO: not sure if we can just return `true` here
-    return true;
+    deepDiff(oldValue, value);
   }
-
-  // if we're here, the value should not be an object, so we can set it
-  const result = Reflect.set(target, key, value, receiver);
 
   // queue a reaction if it's a new property or its value changed
   if (!hadKey) {
