@@ -24,7 +24,6 @@ const appStore = createStore({
     },
     run: ({ state, actions }) => {
       state.rows = []
-      idCounter = 0;
       actions.buildRows(1000)
     },
     add: ({ state, actions }) => {
@@ -52,7 +51,6 @@ const appStore = createStore({
     },
     swapRows: ({ state }) => {
       if (state.rows.length > 998) {
-        console.log('hi');
         [state.rows[1], state.rows[998]] = [state.rows[998], state.rows[1]];
       }
     }
