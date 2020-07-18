@@ -42,7 +42,7 @@
     "dot": "1.1.2",
     "jstat": "1.9.1",
     "lighthouse": "5.2.0",
-    "lodash": "4.17.15",
+    "lodash": "4.17.19",
     "ramda": "0.26.1",
     "selenium-webdriver": "4.0.0-alpha.1",
     "yargs": "14.0.0",
